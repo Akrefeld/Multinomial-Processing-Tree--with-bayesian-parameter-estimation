@@ -1,0 +1,94 @@
+
+model{
+## loop over items
+    for (s in 1:n_items){
+
+        ## subtree 1 tree_complete complete presentation
+        ## subtree 2 tree_halved halved presentation
+        ## subtree 3 tree_new disctractors
+      
+        ## for all category probs:
+        ## column 1 indicates response == complete
+        ## column 2 indicates response == halved
+        ## column 3 indicates response == new
+
+        ## parameters:
+        ## D: theta[, 1] Prob(item_memory) is D =  b0 + b1 * x1[s] + b2 * x2[s] + error
+        ## d: theta[, 2] Prob(source_memory) d =  b0 + b1 * x1[s] + b2 * x2[s] + error
+        ## N: theta[, 3] Prob(item_correct_rejection_old) N = b0 + b1 * x1[s] + b2 * x2[s] + error
+        ## c: theta[, 4] Prob(guess_halved) c = b0 + b1 * x1[s] + b2 * x2[s] + error
+        ## a: theta[, 5] Prob(guess_old) a = b0 + b1 * x1[s] + b2 * x2[s] + error
+        
+        
+        ## subtree 1 (shown complete): category probabilities
+        Prob_C[s, 1] <- theta[s, 1] * theta[s, 2] + theta[s, 1] * (1-theta[s, 2]) * (1-theta[s, 4]) + (1-theta[s, 1]) * theta[s, 5] * (1-theta[s, 4])
+        ## D[i]*d[i] + D[i]*(1-d[i])*(1-c) + (1-D[i])*a*(1-c)
+
+        Prob_C[s, 2] <- (theta[s, 1] * (1-theta[s, 2]) * theta[s, 4]) + (1-theta[s, 1] * theta[s, 5] * theta[s, 4]) 
+        ## D[i]*(1-d[i])*c + (1-D[i])*a*c
+
+        Prob_C[s, 3] <- ((1-theta[s, 2]) * (1-theta[s, 5]))
+        ## (1-D[i])*(1-a)
+        
+        ## Likelihood function for subtree 1:
+        tree_complete[s, 1:3] ~ dmulti(Prob_C[s, 1:3], C[s])
+            
+        ## subtree 2 (shown half): category probabilities
+        Prob_H[s, 1] <- (theta[s, 1] * theta[s, 2]) + (theta[s, 1] * (1-theta[s, 2]) * theta[s, 4]) + ((1-theta[s, 1]) * theta[s, 5] * theta[s, 4])
+        ## D[i]*d[i] + D[i]*(1-d[i])*c + (1-D[i])*a*c
+        
+        Prob_H[s, 2] <- (theta[s, 1] * (1-theta[s, 2]) * (1-theta[s, 4])) + ((1-theta[s, 1]) * theta[s, 5] * (1-theta[s, 4]))
+        ## D[i]*(1-d[i])*(1-c) + (1-D[i])*a*(1-c)
+        
+        Prob_H[s, 3] <- ((1-theta[s, 1]) * (1-theta[s, 5]))
+        ## (1-D[i])*(1-a)
+
+        ## Likelihood function for subtree 2:
+        tree_halved[s, 1:3] ~ dmulti(Prob_H[s, 1:3], H[s])
+        
+        ## subtree 3 (no presenation (NEW)): category probabilities
+        Prob_N[s, 1] <- (theta[s, 3]) + ((1-theta[s, 3]) * (1-theta[s, 5]))
+        ## N[i] + (1-N[i])*(1-a)
+
+        Prob_N[s, 2] <- ((1-theta[s, 3]) * theta[s, 5] * (1-theta[s, 4]))
+        ## (1-N[i])*a*(1-c)
+
+        Prob_N[s, 3] <- ((1-theta[s, 3]) * theta[s, 5] * theta[s, 4])
+        ## (1-N[i])*a*c
+
+        ## Likelihood function for subtree 3:
+        tree_new[s, 1:3] ~ dmulti(Prob_N[s, 1:3], N[s])
+    
+
+        for(p in 1:P) {
+            #probit transformation of parameters
+            theta[s, p] <- phi(theta_probit[s, p])
+        }
+        for (p in 1:P){
+            #distribution of probit transformed parameters = normal multivariate distribution
+            theta_probit[s, 1:P] ~ dmnorm(mu_theta_probit[1:P], tau_prec_item[1:P,1:P]) 
+            #multivariate regression to predict mu of the distribution of probit transformed parametes
+            mu_theta_probit[s, p] <- b0[p]+b1[p]*x1[s]+ b2[p]*x2[s]
+        }
+        }
+        # uninformative prior 
+        
+        
+        #Hyperpriors for beta weights of regression
+        
+        for (p in 1:P) {
+            # uninformative priors
+            b0[p] ~dnorm(0, 1E-06)
+            b1[p] ~dnorm(0, 1E-06)
+            b2[p] ~dnorm(0, 1E-06)
+        }
+        
+        # prior distribution of covariance matric
+      
+        
+        tau_prec_item[1:P, 1:P] ~ dwish(W[1:P, 1:P], (P+1))
+        sigma_item[1:P, 1:P] <- inverse(tau_prec_item[1:P, 1:P])
+    }
+    
+## close model
+}
